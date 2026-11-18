@@ -1,5 +1,9 @@
 # K5 · Day 9 · Lab — Evaluation & Failure Analysis (LogiX-VN)
 
+**Trần Hải Long · 2A202603891**
+
+The fixed refund agent passed 70/70 core trials. The v2 gate blocked all three public regressions, accepted both controls and rejected all four integrity traps. [Evaluation card](docs/eval_card.md) · [Judge audit](docs/judge_audit.md) · [Trace case](docs/trace_case.md) · [PRD v1.1](docs/PRD_v1.1.md)
+
 > Nối tiếp Lab 8. Lab 8 trả lời "agent có chạy không"; Lab 9 trả lời **"làm sao biết bản mới tốt hơn — và chặn được bản tệ trước khi merge"**.
 > Không cần API key: MockLLM + judge replay. **Không Langfuse / OTel** (observability học ở Day 14).
 

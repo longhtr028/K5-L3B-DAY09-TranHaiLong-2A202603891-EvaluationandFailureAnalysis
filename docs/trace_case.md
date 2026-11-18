@@ -1,30 +1,21 @@
-# Trace case: từ trace tới quyết định sai đầu tiên
+# C-002 · the ticket overwrote the order record
 
-Một trace case trả lời một câu: **bước nào là bước sai đầu tiên**, và test nào sẽ bắt được nó lần sau.
+The ledger contains one payment of 20,000 VND. The independent claim label expects no payment. In run `E-seeded_regression-20261118-3f8d`, claim C-002 at seed 11 ends as resolved and tells the customer that the refund was issued.
+
+| Event | Seeded regression | Fixed control at the same seed |
+|---|---|---|
+| 1 · handoff | Delegates three read-only tools in the owner scope. | Same tool permissions. |
+| 2 · investigator | Reads order O-202 with a two-day delay. | Same order, same delay. |
+| 3 · first divergence | `model_override` sets `delay_days` to 5, the customer's ticket value. | `quote` records zero entitlement. |
+| Final outcome | Event 4 quotes 20,000. Event 6 confirms that amount. The ledger matches the reply and the wrong entitlement. | Event 4 explains the denial. The ledger contains zero refunds. |
+
+**Diagnosis.** FM-03 occurs at event 3. The approval was valid for this claim, so a zero-bypass count alone cannot establish that the payment was owed. The trace identifies the value replacement. It gives no evidence about a live model's reasoning or how often customers would encounter it.
+
+**Regression test.** The test replays both shapes, checks the original DB fact, and asserts the step grader, ledger grader and Day 8 verdict. All three return false for the seeded trial and true for the control. The item carries the source trace reference in its provenance. [Regression test](../src/tests/test_lab9_regressions.py) · [Seeded report](../src/reports/eval_seeded_regression.json) · [Control report](../src/reports/eval_fixed.json)
 
 ```bash
 cd src
 python -m lab9.trace_case --shape seeded_regression --claim C-002 --seed 11
-python -m lab9.trace_case --shape fixed --claim C-002 --seed 11   # đối chứng
+python -m lab9.trace_case --shape fixed --claim C-002 --seed 11
+python -m pytest -q -o addopts= -k c002_ticket_delay
 ```
-
-Lệnh in ra ba phần: các event trong trace (`reply`, `decision`, `model_override`, `error` …), ledger so với nhãn, và lý do của grader Lab 8.
-
-## Mẫu điền (mỗi bạn 1 case, lấy từ trial đang fail trong report)
-
-| Trường | Nội dung |
-|---|---|
-| Trial | `<shape> <claim>@<seed>`, run ID trong report |
-| Triệu chứng | Grader nào fail; reply nói gì so với ledger ghi gì |
-| Bước sai đầu tiên | Số thứ tự event + kind + trích payload (≤1 dòng) |
-| Vì sao là bước *đầu tiên* | Các bước trước đó đúng ra sao (dẫn số event) |
-| Failure mode | Mã FM-xx trong `docs/failure_taxonomy.md` |
-| Đối chứng | Cùng claim@seed trên shape `fixed`: bước đó khác thế nào |
-| Regression test | Tên test + grader/assert nào bắt được; đã thấy fail trên variant lỗi và pass trên `fixed` chưa |
-| Chưa chắc chắn | Điều trace không chứng minh được |
-
-## Quy tắc
-
-- Đọc **ledger trước reply**: reply trôi chảy vẫn có thể đi kèm một khoản hoàn sai.
-- "Bước sai đầu tiên" phải dẫn số event cụ thể, không phải "agent bị nhầm".
-- Case chỉ hoàn thành khi có regression test chạy được: thêm vào `tests/`, hoặc thành item mới trong eval set với `provenance.from_trace`.
