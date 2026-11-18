@@ -69,7 +69,7 @@ jobs:
     defaults: {run: {working-directory: src}}
     steps:
       - uses: actions/checkout@v7
-        with: {persist-credentials: false}
+        with: {persist-credentials: false, fetch-depth: 2}
       - id: has
         run: "test -f reports/baseline_v2.json && echo v2=1 >> \"$GITHUB_OUTPUT\" || echo skip, no baseline_v2"
       - if: steps.has.outputs.v2
@@ -83,3 +83,28 @@ jobs:
         run: python -m lab9.evalset --v2
       - if: steps.has.outputs.v2
         run: python -m lab9.mutation --spec config/metric_spec_v2.yaml --baseline reports/baseline_v2.json
+      - if: steps.has.outputs.v2
+        name: Reproduce the v2 baseline and run the report integrity traps
+        run: |
+          python -m lab9.eval --shape swarm --spec config/metric_spec_v2.yaml --out reports/replay_v2.json
+          python -m lab9.gate --pr reports/replay_v2.json --baseline reports/baseline_v2.json --spec config/metric_spec_v2.yaml
+          python -m lab9.eval --shape slice_regression --spec config/metric_spec_v2.yaml --out reports/slice_ci.json
+          python -m lab9.traps --pr reports/slice_ci.json --baseline reports/baseline_v2.json --spec config/metric_spec_v2.yaml
+      - if: steps.has.outputs.v2 && github.event_name == 'pull_request'
+        name: Check both threshold ratchets against the PR base
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        shell: bash
+        run: |
+          for version in v1 v2; do
+            spec=config/metric_spec.yaml
+            [[ "$version" == v2 ]] && spec=config/metric_spec_v2.yaml
+            git show "$BASE_SHA:src/$spec" > "$RUNNER_TEMP/base-spec.yaml"
+            baseline="reports/baseline_$version.json"
+            if git cat-file -e "$BASE_SHA:src/$baseline"; then
+              git show "$BASE_SHA:src/$baseline" > "$RUNNER_TEMP/base-report.json"
+              baseline="$RUNNER_TEMP/base-report.json"
+            fi
+            python -m lab9.gate --pr "reports/baseline_$version.json" --baseline "$baseline" \
+              --spec "$spec" --base-spec "$RUNNER_TEMP/base-spec.yaml"
+          done
